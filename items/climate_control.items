@@ -1,0 +1,46 @@
+
+
+// These group items exist to manage ALL climate control items. Items for specific rooms
+// should be added to these groups.
+
+Group gSmartVentManagementGroups "Smart Vent Management Groups"
+Group gSmartVentTemperature "Temperatures" (gSmartVentManagementGroups)
+Group gSmartVentVentState "Vent States" (gSmartVentManagementGroups)
+Group gSmartVentCoolTarget "Cool Targets" (gSmartVentManagementGroups)
+Group gSmartVentHeatTarget "Heat Targets" (gSmartVentManagementGroups)
+Group gSmartVentAutoUpdateVents "Auto Update Vents" (gSmartVentManagementGroups)
+Group gSmartVentUseCustomHeatTarget "Use Custom Heat Targets" (gSmartVentManagementGroups)
+Group gSmartVentUseCustomCoolTargets  "Heat Targets" (gSmartVentManagementGroups)
+Group gSmartVentVentsAdjustedRecently "Vents Adjusted Recently" (gSmartVentManagementGroups)
+Group gSmartVentManualForceVentClosed "Manual Force Vent Closeds" (gSmartVentManagementGroups)
+Group:Switch gSmartVentEquipmentStatusChangedTrigger "Equipment Status Changed Triggers"
+
+// These items exist once for the entire system. In this case it is the central 
+// HVAC mode (heat, cool, etc..) and equipment status (heat+fan, fan, cool+fan) as
+// well as a virtual switch that enables or disables all vent control at once
+
+String thermostatHvacMode                     "HVAC Mode [%s]"               <keyring>      (gEcobee,gFunctionClimateControl)     
+String thermostatEquipmentStatus              "Equipment Status [%s]"      <keyring>       (gEcobee,gFunctionClimateControl)      
+Switch globalVentControlEnabled "Global Vent Control Enable [%s]" (gPersist,gFunctionTemperature,gFunctionVent)
+
+
+// These are a sample of items needed for one single room. Copy these, changing the room name,
+// for each room that you have under openHAB control. Other than items that use the expire binding,
+// these sample items to not have any bindings as that will vary with your setup. The items that needed
+// to be connected to something are thermostatOfficeSensorTemp and the members of 
+// gClimateControlZoneOfficeVents (a group containing one or multuple vents). The rest are virtual
+// items that you can use to manage the settings of the room.
+
+
+Group gClimateControlZoneOffice "Office" (gFunctionClimateControl)
+Number thermostatOfficeSensorTemp "Office Temp [%.1f °F]" <temperature> (gSmartVentTemperature,gPersist,gFunctionSensor,gFunctionClimateControl,gOffice) 
+Group:Dimmer:AVG gClimateControlZoneOfficeVents "Office Vents [%.0f%%]"  (gSmartVentVentState,gClimateControlZoneOffice) 
+Number zoneOfficeCoolTarget "Office Cool Target [%.1f]" (gSmartVentCoolTarget,gClimateControlZoneOffice,gPersist,gOffice)
+Number zoneOfficeHeatTarget "Office Heat Target [%.1f]" (gSmartVentHeatTarget,gClimateControlZoneOffice,gPersist,gOffice)
+Switch zoneOfficeAutoUpdateVents "Office Auto Update Vents [%s]" (gSmartVentAutoUpdateVents,gClimateControlZoneOffice,gPersist,gOffice)
+Switch zoneOfficeUseCustomCoolTarget "Use Cool Target Office [%s]" (gSmartVentUseCustomCoolTargets,gClimateControlZoneOffice,gPersist,gOffice)
+Switch zoneOfficeUseCustomHeatTarget "Use Heat Target Office [%s]" (gSmartVentUseCustomHeatTarget,gClimateControlZoneOffice,gPersist,gOffice)
+Switch officeVentsAdjustedRecently "Office Vent Adjusted Recently [%s]" (gSmartVentVentsAdjustedRecently,gPersist,gFunctionTemperature,gOffice)  {expire="5m,state=OFF"}  
+Switch officeManualForceVentsClosed  "Office Force Vent Closed [%s]" (gSmartVentManualForceVentClosed,gPersist,gClimateControlZoneOffice,gOffice)  {expire="60m,state=OFF"}  
+Switch officeEquipmentStatusChangeTrigger "Office Equipment Status Changed Trigger [%s]" (gSmartVentEquipmentStatusChangedTrigger,gClimateControlZoneOffice,gOffice) {expire="1s,state=OFF"}  
+

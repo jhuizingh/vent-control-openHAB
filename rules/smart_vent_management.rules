@@ -1,0 +1,219 @@
+rule "Climate Control by Group"
+when
+  Member of gSmartVentTemperature changed or
+  Member of gSmartVentVentsAdjustedRecently changed to OFF or
+  Member of gSmartVentAutoUpdateVents changed to ON or
+  Member of gSmartVentManualForceVentClosed changed to OFF or
+  Member of gSmartVentEquipmentStatusChangedTrigger received command ON
+then
+  var commandName = "VentControl"; 
+  logInfo(commandName, "Triggering Item=[{}], HVAC mode=[{}], EquipmentStatus=[{}]", triggeringItem, thermostatHvacMode.state, thermostatEquipmentStatus.state);
+
+  var triggerName = triggeringItem.name;
+  var thermostatLength = "thermostat".length;
+  var zoneLength = "zone".length;
+  var String room = "";
+
+  // use the triggering item to determine which room we're working with and
+  // select the appropriate items to examine/modify
+
+  if(triggeringItem.name.indexOf("SensorTemp") != -1){
+      var index = triggerName.indexOf("SensorTemp");
+      // variable name starts with "Thermostat" so get substring after that, up until index
+      room = triggerName.substring(thermostatLength, index);
+  }
+  else if(triggeringItem.name.indexOf("VentsAdjustedRecently") != -1){
+      var index = triggerName.indexOf("VentsAdjustedRecently");
+      room = triggerName.substring(0, index);
+  }
+  else if(triggeringItem.name.indexOf("AutoUpdateVents") != -1){
+      var index = triggerName.indexOf("AutoUpdateVents");
+      // variable name starts with "zone" so get substring after that, up until index
+      room = triggerName.substring(zoneLength, index);
+  }
+  else if(triggeringItem.name.indexOf("AutoUpdateVents") != -1){
+      var index = triggerName.indexOf("AutoUpdateVents");
+      // variable name starts with "zone" so get substring after that, up until index
+      room = triggerName.substring(zoneLength, index);
+  }
+  else if(triggeringItem.name.indexOf("ManualForceVentsClosed") != -1){
+      var index = triggerName.indexOf("ManualForceVentsClosed");
+      room = triggerName.substring(0, index);
+  }
+  else if(triggeringItem.name.indexOf("EquipmentStatusChangeTrigger") != -1){
+      var index = triggerName.indexOf("EquipmentStatusChangeTrigger");
+      room = triggerName.substring(0, index);
+  }
+  else if(triggeringItem.name.indexOf("EquipmentStatusChangeTrigger") != -1){
+      var index = triggerName.indexOf("EquipmentStatusChangeTrigger");
+      room = triggerName.substring(0, index);
+  }
+  
+  room = room.toFirstLower();
+  commandName += "-" + room;
+  logInfo(commandName, "Room=[{}]", room);
+
+  // Now that we have the room name, collect all of the items we will be working with
+  var autoUpdateVents = gSmartVentAutoUpdateVents.members.findFirst [item | item.name.toLowerCase.indexOf(room.toLowerCase) != -1];
+  var ventsAdjustedRecently = gSmartVentVentsAdjustedRecently.members.findFirst [item | item.name.toLowerCase.indexOf(room.toLowerCase) != -1];
+  var useCustomCoolTarget = gSmartVentUseCustomCoolTargets.members.findFirst [item | item.name.toLowerCase.indexOf(room.toLowerCase) != -1];
+  var useCustomHeatTarget = gSmartVentUseCustomHeatTarget.members.findFirst [item | item.name.toLowerCase.indexOf(room.toLowerCase) != -1];
+  var coolTarget = gSmartVentCoolTarget.members.findFirst [item | item.name.toLowerCase.indexOf(room.toLowerCase) != -1];
+  var heatTarget = gSmartVentHeatTarget.members.findFirst [item | item.name.toLowerCase.indexOf(room.toLowerCase) != -1];
+  var sensorTemp = gSmartVentTemperature.members.findFirst [item | item.name.toLowerCase.indexOf(room.toLowerCase) != -1];
+  var ventState = gSmartVentVentState.members.findFirst [item | item.name.toLowerCase.indexOf(room.toLowerCase) != -1];
+  var manualForceVentsClosed = gSmartVentManualForceVentClosed.members.findFirst [item | item.name.toLowerCase.indexOf(room.toLowerCase) != -1];
+  
+
+  logInfo(commandName, "autoUpdateVents=[{}], "+
+    "ventsAdjustedRecently=[{}], "+
+    "useCustomCoolTarget=[{}], "+
+    "useCustomHeatTarget=[{}], "+
+    "coolTarget=[{}], "+
+    "heatTarget=[{}], "+
+    "sensorTemp=[{}], "+
+    "ventState=[{}], "+
+    "manualForceVentsClosed=[{}], ", 
+    autoUpdateVents?.name, 
+    ventsAdjustedRecently?.name, 
+    useCustomCoolTarget?.name, 
+    useCustomHeatTarget?.name, 
+    coolTarget?.name, 
+    heatTarget?.name, 
+    sensorTemp?.name, 
+    ventState?.name, 
+    manualForceVentsClosed?.name);
+
+  if(autoUpdateVents !== null && autoUpdateVents.state != ON)  { logInfo(commandName, "Zone vent control disabled. Exiting rule."); return; }
+  if(thermostatEquipmentStatus.state == "") { logInfo(commandName, "No equipment running. Exiting rule."); return; }
+  if(scheduleRoomTempControlsVents.state != ON)  { logInfo(commandName, "Global vent control disabled. Exiting rule."); return; }
+
+
+  // If we should automatically adjust vents
+  // and vent hasn't been adjusted too recently, we can change it if needed
+  if(scheduleRoomTempControlsVents.state == ON
+     && (autoUpdateVents === null || autoUpdateVents.state == ON)
+     && ventsAdjustedRecently.state != ON)
+  {
+       
+    logInfo(commandName, "Allowed to adjust vents because global control vents=[{}], this zone control vents=[{}], adjusted recently=[{}]", scheduleRoomTempControlsVents.state, autoUpdateVents?.state, ventsAdjustedRecently.state);
+    
+    if(thermostatHvacMode.state == "cool")
+    {
+      logInfo(commandName, "Cooling is running. Sensor Temp =[{}], Vent State=[{}], Desired Cool=[{}], Zone Specific Desired Cool=[{}], Use Zone Specific=[{}]", sensorTemp.state, ventState.state, thermostatDesiredCool.state, coolTarget.state, useCustomCoolTarget.state);
+
+      var targetCoolToUse = thermostatDesiredCool.state as Number;
+
+      if(useCustomCoolTarget.state == ON){
+        targetCoolToUse = coolTarget.state as Number;
+        logInfo(commandName, "Using custom cool target=[{}]", targetCoolToUse);
+      }
+      else
+      {
+        logInfo(commandName, "Using thermostat cool target=[{}]", targetCoolToUse);
+      }
+
+
+
+      // If the current temp is lower than the target temp, and the vent is open, close the vent
+      if(sensorTemp.state < targetCoolToUse
+          && ventState.state != 0)
+      {
+      
+        logInfo(commandName, "Closing Vent because actual temp [{}] is less than desired temp [{}] and vent is open [{}]", sensorTemp.state, targetCoolToUse, ventState.state);
+      
+        ventState.sendCommand(0);
+        ventsAdjustedRecently.postUpdate(ON);
+      }
+      
+      // If the current temp is higher than the target temp, and the vent is closed, open the vent
+      else if(sensorTemp.state > targetCoolToUse
+          && ventState.state < 95)
+      {
+        logInfo(commandName, "Opening Vent because actual temp [{}] is higher than desired temp [{}] and vent is not fully open [{}]", sensorTemp.state, targetCoolToUse, ventState.state);
+      
+        ventState.sendCommand(100);
+        ventsAdjustedRecently.postUpdate(ON);
+      }
+      else {
+        logInfo(commandName, "Cool mode, doing nothing.");
+      }
+
+
+    }
+    // If thermostat is in heating mode
+    else if(thermostatHvacMode.state == "heat")
+    {
+      logInfo(commandName, "Heat is running. Sensor Temp =[{}], Vent State=[{}], Desired Heat=[{}], Zone Specific Desired Heat=[{}], Use Zone Specific=[{}]", sensorTemp.state, ventState.state, thermostatDesiredHeat.state, heatTarget.state, useCustomHeatTarget.state);
+
+      var targetHeatToUse = thermostatDesiredHeat.state as Number;
+
+      if(useCustomHeatTarget.state == ON){
+        targetHeatToUse = heatTarget.state as Number;
+        logInfo(commandName, "Using custom heat target=[{}]", targetHeatToUse);
+      }
+      else
+      {
+        logInfo(commandName, "Using thermostat heat target=[{}]", targetHeatToUse);
+      }
+
+
+
+      logInfo(commandName, "Heat is running. vent changed recently=[{}]", ventsAdjustedRecently.state)
+      logInfo(commandName, "Sensor Temp =[{}], Desired Heat=[{}], Vent State=[{}]", 
+        sensorTemp.state, 
+        targetHeatToUse, 
+        ventState.state);
+
+      // If the current temp is higher than the target temp, and the vent is open, close the vent
+      if(sensorTemp.state > targetHeatToUse
+          && ventState.state != 0)
+      {
+        logInfo(commandName, "Closing Vent because actual temp [{}] is greater than desired temp [{}] and vent is open [{}]", sensorTemp.state, targetHeatToUse, ventState.state);
+        ventState.sendCommand(0);
+        ventsAdjustedRecently.postUpdate(ON);
+      }
+
+
+      // If the current temp is lower than the target temp,
+      else if(sensorTemp.state < targetHeatToUse)
+      {
+            logInfo(commandName, "Current temp lower than target temp.");
+            // it's just the fan and the vent is open, then close the vent
+            if(thermostatEquipmentStatus.state == "fan" && ventState.state != 0){
+              logInfo(commandName, "Closing vent since it's just fan in heat mode.");
+              ventState.sendCommand(0);
+              ventsAdjustedRecently.postUpdate(ON);
+            }
+            // the vent is closed, open the vent
+            else if(thermostatEquipmentStatus.state.toString.toLowerCase.indexOf("heat") != -1 
+                    && ventState.state < 90)
+            {
+              logInfo(commandName, "Opening Vent because actual temp [{}] is lower than desired temp [{}] and vent is not fully open [{}]", sensorTemp.state, targetHeatToUse, ventState.state);
+              ventState.sendCommand(100);
+              ventsAdjustedRecently.postUpdate(ON);
+            }
+            else
+            {
+              logInfo(commandName, "Do Nothing. Current < Target, vent already closed for fan, open for heat.");
+            }
+      }
+      else
+      {
+        logInfo(commandName, "Do Nothing. Current > Target and vent open.");
+      }
+
+    }
+    else
+    {
+        logInfo(commandName, "Do nothing. Mode not heat or cool.");
+    }
+
+
+  }
+  else
+  {
+    logInfo(commandName, "Change not allowed. Doing nothing.")
+  }
+
+end

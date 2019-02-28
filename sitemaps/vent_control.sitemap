@@ -1,0 +1,33 @@
+/*  This is a snippet of a sitemap relevant to the smart vent control. It is not a full
+    sitemap and will not work if you attempt to use it by itself.
+*/
+
+
+Text label="Office"{
+	Switch item=zoneOfficeUseCustomCoolTarget visibility=[thermostatHvacMode=="cool"]
+	Setpoint item=zoneOfficeCoolTarget step=0.5 minValue=69 maxValue=76 visibility=[thermostatHvacMode=="cool"]
+
+	Switch item=zoneOfficeUseCustomHeatTarget visibility=[thermostatHvacMode=="heat"]
+	Setpoint item=zoneOfficeHeatTarget step=0.5 minValue=67 maxValue=74 visibility=[thermostatHvacMode=="heat"]
+
+	Text item=thermostatDesiredCool visibility=[thermostatHvacMode=="cool"]
+	Text item=thermostatDesiredHeat visibility=[thermostatHvacMode=="heat"]
+
+	Text item=thermostatOfficeSensorTemp
+	Text item=thermostatOfficeSensorTempInput visibility=[debugMode==ON]
+
+	Text item=thermostatHvacMode
+	Text item=thermostatEquipmentStatus
+	Switch item=officeVentsAdjustedRecently visibility=[debugMode==ON]
+	Slider item=gClimateControlZoneOfficeVents
+	Slider item=officeSmartVentProxy visibility=[debugMode==ON]
+	Chart item=thermostatOfficeSensorTemp period=D
+	Text item=officeManualForceVentsClosed visibility=[debugMode==OFF]
+	Text item=globalVentControlEnabled visibility=[debugMode==OFF]
+	Text item=zoneOfficeAutoUpdateVents visibility=[debugMode==OFF]
+	Switch item=officeManualForceVentsClosed visibility=[debugMode==ON]
+	Switch item=globalVentControlEnabled visibility=[debugMode==ON]
+	Switch item=zoneOfficeAutoUpdateVents visibility=[debugMode==ON]
+	Switch item=officeEquipmentStatusChangeTrigger visibility=[debugMode==ON]
+	Switch item=debugMode
+}
